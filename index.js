@@ -63,7 +63,6 @@ const alreadyBorrowed = await borrowCollection.findOne({
     bookId: borrowData.bookId,
     borrowerEmail: borrowData.borrowerEmail,
   });
-
   if (alreadyBorrowed) {
     return res.status(400).send({ error: "This book is already borrowed by you." });
   }
@@ -72,7 +71,16 @@ const alreadyBorrowed = await borrowCollection.findOne({
   res.send(result);
 });
 
-app.get(`/myBorrowedBooks/:email`, async (req, res) => {
+
+
+
+app.get("/bookData/borrow/:email", async (req, res) => {
+  const email = req.params.email;
+  const result = await borrowCollection.find({ userEmail: email }).toArray();
+  res.send(result);
+})
+
+app.get(`/myBooks/:email`, async (req, res) => {
   const email = req.params.email;
   const result = await bookDataCollection
     .find({ creatorEmail: email })
@@ -81,9 +89,21 @@ app.get(`/myBorrowedBooks/:email`, async (req, res) => {
 });
 
 
+app.patch("/bookData/:id", async (req, res) => {
+  const id = req.params.id;
+  const updatedData = req.body;
+const result = await bookDataCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updatedData }
+  );
+  res.send(result);
+})
 
-
-
+app.delete("/bookData/:id", async (req, res) => {
+  const id = req.params.id;
+  const result = await bookDataCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
 
 
 
