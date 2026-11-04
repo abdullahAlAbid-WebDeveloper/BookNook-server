@@ -79,7 +79,7 @@ app.get("/bookData", async (req, res) => {
   res.send(result);
 });
 
-app.get("/bookData/:id", async (req, res) => {
+app.get("/bookData/:id",verifyToken, async (req, res) => {
   const id = req.params.id;
   console.log(id);
 
@@ -100,13 +100,46 @@ app.post("/bookData/borrow", verifyToken, async (req, res) => {
       .send({ error: "This book is already borrowed by you." });
   }
 
+  // Check how many copies are left before allowing a borrow
+  const book = await bookDataCollection.findOne({
+    _id: new ObjectId(borrowData.bookId),
+  });
+  const copiesLeft = Number(book?.totalCopies ?? 0);
+  if (copiesLeft <= 0) {
+    return res
+      .status(400)
+      .send({ error: "No copies of this book are available right now." });
+  }
+
   const result = await borrowCollection.insertOne(borrowData);
+
+  // Decrease copies left by 1 after a successful borrow
+  await bookDataCollection.updateOne(
+    { _id: new ObjectId(borrowData.bookId) },
+    { $set: { totalCopies: copiesLeft - 1 } },
+  );
+
   res.send(result);
 });
 
 app.delete("/bookData/borrow/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
+
+  // Find the borrow record first so we know which book to update
+  const borrowData = await borrowCollection.findOne({ _id: new ObjectId(id) });
   const result = await borrowCollection.deleteOne({ _id: new ObjectId(id) });
+
+  // Increase copies left by 1 after returning the book
+  if (result.acknowledged && borrowData?.bookId) {
+    const book = await bookDataCollection.findOne({
+      _id: new ObjectId(borrowData.bookId),
+    });
+    await bookDataCollection.updateOne(
+      { _id: new ObjectId(borrowData.bookId) },
+      { $set: { totalCopies: Number(book?.totalCopies ?? 0) + 1 } },
+    );
+  }
+
   res.send(result);
 });
 
