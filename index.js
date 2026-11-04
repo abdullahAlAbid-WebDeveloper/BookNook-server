@@ -175,21 +175,17 @@ app.patch("/bookData/:id", verifyToken, async (req, res) => {
   res.send(result);
 });
 
+app.delete("/bookData/:id", verifyToken, async (req, res) => {
+  const id = req.params.id;
+  const result = await bookDataCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+app.delete("/bookData/borrow", verifyToken, async (req, res) => {
+  const id = req.params.id;
+  const result = await borrowCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
 
 app.listen(PORT, () => {
   console.log(`Server is Running on ${PORT}`);
