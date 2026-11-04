@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
+import { jwtVerify, createRemoteJWKSet } from "jose";
 
 const PORT = 5000;
 
@@ -29,12 +30,44 @@ const db = connectClient.db("bookNook");
 const bookDataCollection = db.collection("bookData");
 const borrowCollection = db.collection("borrowData");
 
-app.post("/bookData", async (req, res) => {
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ error: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized " });
+  }
+
+  const JWKS = createRemoteJWKSet(
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+  );
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: process.env.CLIENT_URL,
+    });
+    console.log(payload);
+
+    req.user = payload;
+  } catch (err) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  next();
+};
+
+app.post("/bookData", verifyToken, async (req, res) => {
   const AllBookData = req.body;
 
- const alReadyExists = await bookDataCollection.findOne({ title: AllBookData.title, author: AllBookData.author });
+  const alReadyExists = await bookDataCollection.findOne({
+    title: AllBookData.title,
+    author: AllBookData.author,
+  });
   if (alReadyExists) {
-    return res.status(400).send({ error: "This book already exists in the database." });
+    return res
+      .status(400)
+      .send({ error: "This book already exists in the database." });
   }
 
   const result = await bookDataCollection.insertOne(AllBookData);
@@ -42,8 +75,6 @@ app.post("/bookData", async (req, res) => {
 });
 
 app.get("/bookData", async (req, res) => {
-
-  
   const result = await bookDataCollection.find().toArray();
   res.send(result);
 });
@@ -56,70 +87,75 @@ app.get("/bookData/:id", async (req, res) => {
   res.send(result);
 });
 
-app.post("/bookData/borrow", async (req, res) => {
+app.post("/bookData/borrow", verifyToken, async (req, res) => {
   const borrowData = req.body;
 
-const alreadyBorrowed = await borrowCollection.findOne({
+  const alreadyBorrowed = await borrowCollection.findOne({
     bookId: borrowData.bookId,
     borrowerEmail: borrowData.borrowerEmail,
   });
   if (alreadyBorrowed) {
-    return res.status(400).send({ error: "This book is already borrowed by you." });
+    return res
+      .status(400)
+      .send({ error: "This book is already borrowed by you." });
   }
 
   const result = await borrowCollection.insertOne(borrowData);
   res.send(result);
 });
 
+app.delete("/bookData/borrow/:id", verifyToken, async (req, res) => {
+  const id = req.params.id;
+  const result = await borrowCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
 
-
-
-app.get("/bookData/borrow/:email", async (req, res) => {
+app.get(`/bookData/borrow/:email`, verifyToken, async (req, res) => {
   const email = req.params.email;
+
+  if (email !== req.user.email) {
+    return res.status(403).send({ error: "Forbidden access" });
+  }
+
   const result = await borrowCollection.find({ userEmail: email }).toArray();
   res.send(result);
-})
+});
 
-app.get(`/myBooks/:email`, async (req, res) => {
+app.get(`/myBooks/:email`, verifyToken, async (req, res) => {
   const email = req.params.email;
+  if (email !== req.user.email) {
+    return res.status(403).send({ error: "Forbidden access" });
+  }
   const result = await bookDataCollection
     .find({ creatorEmail: email })
     .toArray();
   res.send(result);
 });
 
-
-app.patch("/bookData/:id", async (req, res) => {
+app.patch("/bookData/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
   const updatedData = req.body;
-const result = await bookDataCollection.updateOne(
+  const result = await bookDataCollection.updateOne(
     { _id: new ObjectId(id) },
-    { $set: updatedData }
+    { $set: updatedData },
   );
   res.send(result);
-})
+});
 
-app.delete("/bookData/:id", async (req, res) => {
+app.delete("/bookData/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
   const result = await bookDataCollection.deleteOne({ _id: new ObjectId(id) });
   res.send(result);
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+app.delete("/bookData/borrow", verifyToken, async (req, res) => {
+  const id = req.params.id;
+  const result = await borrowCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
 
 app.listen(PORT, () => {
   console.log(`Server is Running on ${PORT}`);
 });
+
+export default app;
