@@ -9,7 +9,6 @@ Express + MongoDB REST API for the **BookNook** library app. It stores books and
 npm install
 
 # 2. Create a .env file in this folder
-MONGODB_URL=your-mongodb-connection-string
 CLIENT_URL=http://localhost:3000
 
 # 3. Make sure the Next.js client is running on CLIENT_URL
