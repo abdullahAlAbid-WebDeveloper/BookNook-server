@@ -32,10 +32,13 @@ const borrowCollection = db.collection("borrowData");
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
+  console.log(authHeader);
+  
   if (!authHeader) {
     return res.status(401).send({ error: "Unauthorized access" });
   }
   const token = authHeader.split(" ")[1];
+  
   if (!token) {
     return res.status(401).send({ message: "Unauthorized " });
   }
@@ -52,6 +55,8 @@ const verifyToken = async (req, res, next) => {
 
     req.user = payload;
   } catch (err) {
+    console.log(err);
+    
     return res.status(401).send({ message: "Unauthorized access" });
   }
   next();
